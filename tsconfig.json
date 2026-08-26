@@ -12,7 +12,9 @@
       "@indexa/embeddings": ["packages/embeddings/src/index.ts"],
       "@indexa/embeddings/*": ["packages/embeddings/src/*"],
       "@indexa/evaluation": ["packages/evaluation/src/index.ts"],
-      "@indexa/evaluation/*": ["packages/evaluation/src/*"]
+      "@indexa/evaluation/*": ["packages/evaluation/src/*"],
+      "@indexa/llm": ["packages/llm/src/index.ts"],
+      "@indexa/llm/*": ["packages/llm/src/*"]
     }
   },
   "include": [

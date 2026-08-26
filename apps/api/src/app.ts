@@ -1,5 +1,6 @@
 import { createDb } from '@indexa/db';
 import { FakeEmbeddingProvider } from '@indexa/embeddings';
+import { FakeLLMProvider } from '@indexa/llm';
 import Fastify, { type FastifyInstance } from 'fastify';
 import Redis from 'ioredis';
 import type { ApiConfig } from './config';
@@ -8,10 +9,12 @@ import { createIngestionQueue } from './queue/ingestion-queue';
 import { createIngestionJobRepository } from './repositories/ingestion-job-repository';
 import { createSearchRepository } from './repositories/search-repository';
 import { documentsRoutes } from './routes/documents';
+import { generationRoutes } from './routes/generation';
 import { healthRoutes } from './routes/health';
 import { jobsRoutes } from './routes/jobs';
 import { searchRoutes } from './routes/search';
 import { DocumentService } from './services/document-service';
+import { GenerationService } from './services/generation-service';
 import { SearchService } from './services/search-service';
 
 /**
@@ -48,6 +51,13 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
     searchRepository,
   });
 
+  const llmProvider = new FakeLLMProvider();
+  const generationService = new GenerationService({
+    searchService,
+    llmProvider,
+    defaultTopK: config.DEFAULT_TOP_K,
+  });
+
   const ingestionQueue = createIngestionQueue(redis);
   const ingestionJobRepository = createIngestionJobRepository(db);
 
@@ -63,6 +73,7 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
   app.register(documentsRoutes, { documentService });
   app.register(jobsRoutes, { ingestionJobRepository });
   app.register(searchRoutes, { searchService, defaultTopK: config.DEFAULT_TOP_K });
+  app.register(generationRoutes, { generationService, defaultTopK: config.DEFAULT_TOP_K });
   registerErrorHandler(app);
 
   app.addHook('onClose', async () => {

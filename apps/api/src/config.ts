@@ -25,6 +25,9 @@ const envSchema = z
     EMBEDDING_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
     EMBEDDING_MODEL: z.string().min(1).optional(),
     EMBEDDING_API_KEY: z.string().min(1).optional(),
+    LLM_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
+    LLM_MODEL: z.string().min(1).optional(),
+    LLM_API_KEY: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.CHUNK_OVERLAP >= value.CHUNK_SIZE) {

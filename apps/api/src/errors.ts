@@ -91,6 +91,13 @@ export class IngestionJobError extends AppError {
   }
 }
 
+export class LLMProviderError extends AppError {
+  constructor(message: string, cause?: unknown) {
+    super(message, { statusCode: 502, code: 'LLM_PROVIDER_ERROR' });
+    this.cause = cause;
+  }
+}
+
 /**
  * Validate untrusted input with a Zod schema, mapping failures to 400.
  * Keeps route handlers thin: `parseWith(schema, request.body)`.
