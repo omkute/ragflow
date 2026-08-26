@@ -1,0 +1,29 @@
+{
+  "name": "indexa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Indexa — Incremental RAG indexing & retrieval infrastructure",
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:api": "bun --watch apps/api/src/server.ts",
+    "dev:worker": "bun --watch apps/worker/src/worker.ts",
+    "start:api": "bun apps/api/src/server.ts",
+    "start:worker": "bun apps/worker/src/worker.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "biome check .",
+    "format": "biome format --write .",
+    "db:generate": "drizzle-kit generate --config packages/db/drizzle.config.ts",
+    "db:migrate": "bun packages/db/src/migrate.ts",
+    "infra:up": "docker compose up -d --wait",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/bun": "1.2.23",
+    "drizzle-kit": "0.31.4",
+    "typescript": "5.9.2"
+  }
+}
