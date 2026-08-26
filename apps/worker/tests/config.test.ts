@@ -4,7 +4,10 @@ import { INGESTION_QUEUE_NAME } from '../src/jobs/queues';
 
 describe('worker config', () => {
   test('applies defaults for optional variables', () => {
-    const config = loadConfig({ REDIS_URL: 'redis://localhost:6379' });
+    const config = loadConfig({
+      REDIS_URL: 'redis://localhost:6379',
+      DATABASE_URL: 'postgresql://indexa:indexa@localhost:5432/indexa',
+    });
 
     expect(config.WORKER_CONCURRENCY).toBe(2);
     expect(config.LOG_LEVEL).toBe('info');
@@ -14,6 +17,7 @@ describe('worker config', () => {
   test('coerces WORKER_CONCURRENCY', () => {
     const config = loadConfig({
       REDIS_URL: 'redis://localhost:6379',
+      DATABASE_URL: 'postgresql://indexa:indexa@localhost:5432/indexa',
       WORKER_CONCURRENCY: '4',
     });
     expect(config.WORKER_CONCURRENCY).toBe(4);
@@ -31,7 +35,11 @@ describe('worker config', () => {
 
   test('rejects invalid WORKER_CONCURRENCY', () => {
     expect(() =>
-      loadConfig({ REDIS_URL: 'redis://localhost:6379', WORKER_CONCURRENCY: '0' }),
+      loadConfig({
+        REDIS_URL: 'redis://localhost:6379',
+        DATABASE_URL: 'postgresql://indexa:indexa@localhost:5432/indexa',
+        WORKER_CONCURRENCY: '0',
+      }),
     ).toThrow(ConfigurationError);
   });
 });

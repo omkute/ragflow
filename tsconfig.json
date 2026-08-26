@@ -1,7 +1,17 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": "."
+    "baseUrl": ".",
+    "paths": {
+      "@indexa/db": ["packages/db/src/index.ts"],
+      "@indexa/db/*": ["packages/db/src/*"],
+      "@indexa/document-processing": ["packages/document-processing/src/index.ts"],
+      "@indexa/document-processing/*": ["packages/document-processing/src/*"],
+      "@indexa/chunking": ["packages/chunking/src/index.ts"],
+      "@indexa/chunking/*": ["packages/chunking/src/*"],
+      "@indexa/embeddings": ["packages/embeddings/src/index.ts"],
+      "@indexa/embeddings/*": ["packages/embeddings/src/*"]
+    }
   },
   "include": ["apps/**/*.ts", "packages/*/src/**/*.ts", "packages/*/drizzle.config.ts"],
   "exclude": ["node_modules", "**/node_modules"]

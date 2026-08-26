@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { parseWith } from '../errors';
 import type { ChunkRow } from '../repositories/chunk-repository';
 import type { DocumentRow, DocumentVersionRow } from '../repositories/document-repository';
-import { createDocumentSchema, listDocumentsQuerySchema } from '../schemas/document-schemas';
+import {
+  createDocumentSchema,
+  listDocumentsQuerySchema,
+  reindexDocumentSchema,
+} from '../schemas/document-schemas';
 import type { DocumentService } from '../services/document-service';
 
 export interface DocumentsRoutesOptions {
@@ -109,13 +113,27 @@ export async function documentsRoutes(
     const result = await documentService.create(input);
 
     request.log.info(
-      { document_id: result.document.id, document_version_id: result.version?.id },
-      'Document ingested',
+      {
+        document_id: result.document.id,
+        document_version_id: result.version?.id,
+        ingestion_job_id: result.ingestionJob.id,
+      },
+      'Document ingestion queued',
     );
 
-    return reply
-      .code(201)
-      .send(serializeDocument(result.document, result.version, { includeContent: false }));
+    const isReady = result.ingestionJob.status === 'completed';
+    const statusCode = isReady ? 201 : 202;
+    const docView = serializeDocument(result.document, result.version, { includeContent: false });
+
+    return reply.code(statusCode).send({
+      ...docView,
+      jobId: result.ingestionJob.id,
+      job: {
+        id: result.ingestionJob.id,
+        status: result.ingestionJob.status,
+        attempts: result.ingestionJob.attempts,
+      },
+    });
   });
 
   app.get('/documents', async (request, reply) => {
@@ -143,6 +161,35 @@ export async function documentsRoutes(
     const { id } = parseWith(uuidParamSchema, request.params);
     const chunks = await documentService.listChunks(id);
     return reply.send({ documentId: id, chunks: chunks.map(serializeChunk) });
+  });
+
+  app.post('/documents/:id/reindex', async (request, reply) => {
+    const { id } = parseWith(uuidParamSchema, request.params);
+    const input = parseWith(reindexDocumentSchema, request.body);
+    const result = await documentService.reindex(id, input);
+
+    request.log.info(
+      {
+        document_id: result.document.id,
+        document_version_id: result.version?.id,
+        ingestion_job_id: result.ingestionJob.id,
+      },
+      'Document reindex queued',
+    );
+
+    const isReady = result.ingestionJob.status === 'completed';
+    const statusCode = isReady ? 201 : 202;
+    const docView = serializeDocument(result.document, result.version, { includeContent: false });
+
+    return reply.code(statusCode).send({
+      ...docView,
+      jobId: result.ingestionJob.id,
+      job: {
+        id: result.ingestionJob.id,
+        status: result.ingestionJob.status,
+        attempts: result.ingestionJob.attempts,
+      },
+    });
   });
 
   app.delete('/documents/:id', async (request, reply) => {

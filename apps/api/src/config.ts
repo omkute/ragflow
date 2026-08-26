@@ -20,6 +20,11 @@ const envSchema = z
       }),
     CHUNK_SIZE: z.coerce.number().int().min(1).max(8192).default(512),
     CHUNK_OVERLAP: z.coerce.number().int().min(0).max(8191).default(50),
+    VECTOR_DIMENSION: z.coerce.number().int().min(8).max(4096).default(1536),
+    DEFAULT_TOP_K: z.coerce.number().int().min(1).max(100).default(5),
+    EMBEDDING_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
+    EMBEDDING_MODEL: z.string().min(1).optional(),
+    EMBEDDING_API_KEY: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
     if (value.CHUNK_OVERLAP >= value.CHUNK_SIZE) {
@@ -27,6 +32,14 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ['CHUNK_OVERLAP'],
         message: 'CHUNK_OVERLAP must be < CHUNK_SIZE',
+      });
+    }
+    if (value.VECTOR_DIMENSION !== 1536) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['VECTOR_DIMENSION'],
+        message:
+          'VECTOR_DIMENSION must be 1536 to match the pgvector column (vector(1536)); change the dimension requires a new migration',
       });
     }
   });

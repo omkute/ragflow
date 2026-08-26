@@ -13,6 +13,14 @@ export const createDocumentSchema = z.object({
 
 export type CreateDocumentInput = z.infer<typeof createDocumentSchema>;
 
+export const reindexDocumentSchema = z.object({
+  filename: z.string().min(1).max(512).optional(),
+  contentType: z.string().min(1).max(128).optional(),
+  content: z.string().min(1).max(5_000_000),
+});
+
+export type ReindexDocumentInput = z.infer<typeof reindexDocumentSchema>;
+
 export const listDocumentsQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),

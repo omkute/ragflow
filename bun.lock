@@ -18,6 +18,8 @@
         "@indexa/chunking": "workspace:*",
         "@indexa/db": "workspace:*",
         "@indexa/document-processing": "workspace:*",
+        "@indexa/embeddings": "workspace:*",
+        "bullmq": "^5.58.0",
         "drizzle-orm": "^0.44.2",
         "fastify": "^5.3.2",
         "ioredis": "^5.6.1",
@@ -28,9 +30,15 @@
       "name": "@indexa/worker",
       "version": "0.1.0",
       "dependencies": {
+        "@indexa/chunking": "workspace:*",
+        "@indexa/db": "workspace:*",
+        "@indexa/document-processing": "workspace:*",
+        "@indexa/embeddings": "workspace:*",
         "bullmq": "^5.58.0",
+        "drizzle-orm": "^0.44.2",
         "ioredis": "^5.6.1",
         "pino": "^9.7.0",
+        "postgres": "^3.4.7",
         "zod": "^3.25.76",
       },
     },
@@ -51,6 +59,10 @@
     },
     "packages/document-processing": {
       "name": "@indexa/document-processing",
+      "version": "0.1.0",
+    },
+    "packages/embeddings": {
+      "name": "@indexa/embeddings",
       "version": "0.1.0",
     },
   },
@@ -150,6 +162,8 @@
     "@indexa/db": ["@indexa/db@workspace:packages/db"],
 
     "@indexa/document-processing": ["@indexa/document-processing@workspace:packages/document-processing"],
+
+    "@indexa/embeddings": ["@indexa/embeddings@workspace:packages/embeddings"],
 
     "@indexa/worker": ["@indexa/worker@workspace:apps/worker"],
 

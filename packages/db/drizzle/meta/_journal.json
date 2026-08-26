@@ -22,6 +22,20 @@
       "when": 1787756344578,
       "tag": "0002_tidy_mad_thinker",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1787757317267,
+      "tag": "0003_mushy_maelstrom",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1787757380013,
+      "tag": "0004_striped_mad_thinker",
+      "breakpoints": true
     }
   ]
 }

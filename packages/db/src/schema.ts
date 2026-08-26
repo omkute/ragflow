@@ -1,4 +1,5 @@
 import {
+  customType,
   index,
   integer,
   jsonb,
@@ -10,6 +11,34 @@ import {
   uuid,
   varchar,
 } from 'drizzle-orm/pg-core';
+
+/**
+ * pgvector `vector` column type.
+ *
+ * Drizzle has no built-in vector helper; we model it as a custom type that
+ * serialises number[] <-> "[1,2,3]" for postgres.js. The dimension is fixed
+ * at the schema level (1536) to match the default embedding model; it is
+ * validated against VECTOR_DIMENSION at application startup.
+ */
+export const vector = customType<{
+  data: number[];
+  driverData: string;
+  config: { dimensions: number };
+}>({
+  dataType(config) {
+    const dim = config?.dimensions ?? 1536;
+    return `vector(${dim})`;
+  },
+  toDriver(value: number[]): string {
+    return `[${value.join(',')}]`;
+  },
+  fromDriver(value: string): number[] {
+    // postgres.js returns vector as string like "[1,2,3]" — parse deterministically.
+    const trimmed = value.trim().replace(/^\[/, '').replace(/\]$/, '');
+    if (trimmed === '') return [];
+    return trimmed.split(',').map((s) => Number.parseFloat(s.trim()));
+  },
+});
 
 /** Shared lifecycle states for documents and their indexed versions. */
 export const documentStatusEnum = pgEnum('document_status', [
@@ -66,6 +95,38 @@ export const documentVersions = pgTable(
   ],
 );
 
+export const ingestionJobStatusEnum = pgEnum('ingestion_job_status', [
+  'queued',
+  'processing',
+  'completed',
+  'failed',
+  'cancelled',
+]);
+
+export const ingestionJobs = pgTable(
+  'ingestion_jobs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    status: ingestionJobStatusEnum('status').notNull().default('queued'),
+    attempts: integer('attempts').notNull().default(0),
+    error: text('error'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    startedAt: timestamp('started_at', { withTimezone: true }),
+    completedAt: timestamp('completed_at', { withTimezone: true }),
+  },
+  (table) => [
+    index('ingestion_jobs_document_id_idx').on(table.documentId),
+    uniqueIndex('ingestion_jobs_document_version_id_uq').on(table.documentVersionId),
+    index('ingestion_jobs_status_idx').on(table.status),
+  ],
+);
+
 /**
  * A searchable chunk produced by deterministic token-aware chunking.
  * An embedding vector (pgvector) and incremental-index fields will be added
@@ -86,6 +147,8 @@ export const chunks = pgTable(
     content: text('content').notNull(),
     contentHash: varchar('content_hash', { length: 64 }).notNull(),
     tokenCount: integer('token_count').notNull(),
+    /** pgvector embedding; nullable until the embedding step completes. */
+    embedding: vector('embedding', { dimensions: 1536 }),
     metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),

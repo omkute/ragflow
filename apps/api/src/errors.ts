@@ -61,6 +61,36 @@ export class ChunkingError extends AppError {
   }
 }
 
+export class EmbeddingProviderError extends AppError {
+  constructor(message: string, cause?: unknown) {
+    super(message, { statusCode: 502, code: 'EMBEDDING_PROVIDER_ERROR' });
+    this.cause = cause;
+  }
+}
+
+export class RetrievalError extends AppError {
+  constructor(message: string, cause?: unknown) {
+    super(message, { statusCode: 500, code: 'RETRIEVAL_ERROR' });
+    this.cause = cause;
+  }
+}
+
+export class IngestionJobNotFoundError extends AppError {
+  constructor(jobId: string) {
+    super(`Ingestion job not found: ${jobId}`, {
+      statusCode: 404,
+      code: 'INGESTION_JOB_NOT_FOUND',
+    });
+  }
+}
+
+export class IngestionJobError extends AppError {
+  constructor(message: string, cause?: unknown) {
+    super(message, { statusCode: 500, code: 'INGESTION_JOB_ERROR' });
+    this.cause = cause;
+  }
+}
+
 /**
  * Validate untrusted input with a Zod schema, mapping failures to 400.
  * Keeps route handlers thin: `parseWith(schema, request.body)`.

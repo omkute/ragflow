@@ -11,6 +11,7 @@ export interface NewChunkRow {
   content: string;
   contentHash: string;
   tokenCount: number;
+  embedding?: number[] | null;
   metadata: Record<string, unknown>;
 }
 
@@ -45,6 +46,7 @@ export function createChunkRepository(db: Database): ChunkRepository {
             content: r.content,
             contentHash: r.contentHash,
             tokenCount: r.tokenCount,
+            embedding: r.embedding as unknown as typeof chunks.$inferInsert.embedding,
             metadata: r.metadata,
           })),
         )
@@ -54,6 +56,7 @@ export function createChunkRepository(db: Database): ChunkRepository {
             content: sql`excluded.content`,
             contentHash: sql`excluded.content_hash`,
             tokenCount: sql`excluded.token_count`,
+            embedding: sql`excluded.embedding`,
             metadata: sql`excluded.metadata`,
             updatedAt: sql`now()`,
           },
