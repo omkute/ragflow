@@ -1,6 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { parseWith } from '../errors';
+import type { ChunkRow } from '../repositories/chunk-repository';
 import type { DocumentRow, DocumentVersionRow } from '../repositories/document-repository';
 import { createDocumentSchema, listDocumentsQuerySchema } from '../schemas/document-schemas';
 import type { DocumentService } from '../services/document-service';
@@ -21,6 +22,19 @@ interface VersionView {
   /** Only present on the detail view. */
   content?: string;
   metadata?: Record<string, unknown>;
+}
+
+interface ChunkView {
+  id: string;
+  documentId: string;
+  documentVersionId: string;
+  chunkIndex: number;
+  content: string;
+  contentHash: string;
+  tokenCount: number;
+  metadata: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface DocumentView {
@@ -47,6 +61,21 @@ function serializeVersion(
     createdAt: version.createdAt.toISOString(),
     completedAt: version.completedAt ? version.completedAt.toISOString() : null,
     ...(options.includeContent ? { content: version.content, metadata: version.metadata } : {}),
+  };
+}
+
+function serializeChunk(row: ChunkRow): ChunkView {
+  return {
+    id: row.id,
+    documentId: row.documentId,
+    documentVersionId: row.documentVersionId,
+    chunkIndex: row.chunkIndex,
+    content: row.content,
+    contentHash: row.contentHash,
+    tokenCount: row.tokenCount,
+    metadata: row.metadata,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
   };
 }
 
@@ -108,6 +137,12 @@ export async function documentsRoutes(
     const result = await documentService.get(id);
 
     return reply.send(serializeDocument(result.document, result.version, { includeContent: true }));
+  });
+
+  app.get('/documents/:id/chunks', async (request, reply) => {
+    const { id } = parseWith(uuidParamSchema, request.params);
+    const chunks = await documentService.listChunks(id);
+    return reply.send({ documentId: id, chunks: chunks.map(serializeChunk) });
   });
 
   app.delete('/documents/:id', async (request, reply) => {

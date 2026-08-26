@@ -8,6 +8,7 @@
     "start": "bun src/server.ts"
   },
   "dependencies": {
+    "@indexa/chunking": "workspace:*",
     "@indexa/db": "workspace:*",
     "@indexa/document-processing": "workspace:*",
     "drizzle-orm": "^0.44.2",

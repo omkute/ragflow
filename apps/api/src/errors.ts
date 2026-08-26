@@ -54,6 +54,13 @@ export class DocumentParseError extends AppError {
   }
 }
 
+export class ChunkingError extends AppError {
+  constructor(message: string, cause?: unknown) {
+    super(message, { statusCode: 422, code: 'CHUNKING_ERROR' });
+    this.cause = cause;
+  }
+}
+
 /**
  * Validate untrusted input with a Zod schema, mapping failures to 400.
  * Keeps route handlers thin: `parseWith(schema, request.body)`.

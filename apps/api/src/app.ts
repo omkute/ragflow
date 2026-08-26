@@ -33,7 +33,11 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
   });
 
   app.register(healthRoutes, { sql, redis });
-  app.register(documentsRoutes, { documentService: new DocumentService(db) });
+  app.register(documentsRoutes, {
+    documentService: new DocumentService(db, {
+      chunkerConfig: { chunkSize: config.CHUNK_SIZE, chunkOverlap: config.CHUNK_OVERLAP },
+    }),
+  });
   registerErrorHandler(app);
 
   app.addHook('onClose', async () => {

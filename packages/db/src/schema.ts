@@ -65,3 +65,35 @@ export const documentVersions = pgTable(
     uniqueIndex('document_versions_document_version_uq').on(table.documentId, table.version),
   ],
 );
+
+/**
+ * A searchable chunk produced by deterministic token-aware chunking.
+ * An embedding vector (pgvector) and incremental-index fields will be added
+ * in Milestones 4-6; this table already enforces deterministic identity
+ * (content_hash) and ordering (chunk_index).
+ */
+export const chunks = pgTable(
+  'chunks',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    documentId: uuid('document_id')
+      .notNull()
+      .references(() => documents.id, { onDelete: 'cascade' }),
+    documentVersionId: uuid('document_version_id')
+      .notNull()
+      .references(() => documentVersions.id, { onDelete: 'cascade' }),
+    chunkIndex: integer('chunk_index').notNull(),
+    content: text('content').notNull(),
+    contentHash: varchar('content_hash', { length: 64 }).notNull(),
+    tokenCount: integer('token_count').notNull(),
+    metadata: jsonb('metadata').$type<Record<string, unknown>>().notNull().default({}),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex('chunks_version_index_uq').on(table.documentVersionId, table.chunkIndex),
+    index('chunks_document_id_idx').on(table.documentId),
+    index('chunks_document_version_id_idx').on(table.documentVersionId),
+    index('chunks_content_hash_idx').on(table.contentHash),
+  ],
+);
