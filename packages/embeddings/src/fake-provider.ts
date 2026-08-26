@@ -64,16 +64,29 @@ export class FakeEmbeddingProvider implements EmbeddingProvider {
   }
 
   private embedOne(text: string): number[] {
-    // Seed from text hash (FNV-1a 32-bit), then perturb per-dimension.
-    const base = fnv1a(text);
+    // Token-aware deterministic embedding: average per-token random vectors
+    // so that queries sharing keywords with documents rank higher than
+    // unrelated documents. Keeps exact-match score = 1 (identical token sets).
+    const tokens = text
+      .toLowerCase()
+      .split(/\s+/)
+      .filter((t) => t.length > 0);
+    const effectiveTokens = tokens.length > 0 ? tokens : [text.toLowerCase()];
 
-    const vec: number[] = new Array(this.dimension);
+    const vec: number[] = new Array(this.dimension).fill(0);
+
+    for (const token of effectiveTokens) {
+      const tokenHash = fnv1a(token);
+      for (let i = 0; i < this.dimension; i++) {
+        const mixed = fnv1a(`${tokenHash}:${i}`);
+        const normalized = (mixed / 0xffffffff) * 2 - 1;
+        vec[i] = (vec[i] ?? 0) + normalized;
+      }
+    }
+
+    // Average across tokens
     for (let i = 0; i < this.dimension; i++) {
-      // Mix base + i into a pseudo-random float in [-1, 1].
-      const mixed = fnv1a(`${base}:${i}`);
-      // Map uint32 -> [-1, 1]
-      const normalized = (mixed / 0xffffffff) * 2 - 1;
-      vec[i] = normalized;
+      vec[i] = (vec[i] ?? 0) / effectiveTokens.length;
     }
 
     // L2 normalize so cosine similarity is meaningful (dot product of normalized vectors).

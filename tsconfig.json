@@ -10,9 +10,16 @@
       "@indexa/chunking": ["packages/chunking/src/index.ts"],
       "@indexa/chunking/*": ["packages/chunking/src/*"],
       "@indexa/embeddings": ["packages/embeddings/src/index.ts"],
-      "@indexa/embeddings/*": ["packages/embeddings/src/*"]
+      "@indexa/embeddings/*": ["packages/embeddings/src/*"],
+      "@indexa/evaluation": ["packages/evaluation/src/index.ts"],
+      "@indexa/evaluation/*": ["packages/evaluation/src/*"]
     }
   },
-  "include": ["apps/**/*.ts", "packages/*/src/**/*.ts", "packages/*/drizzle.config.ts"],
+  "include": [
+    "apps/**/*.ts",
+    "packages/*/src/**/*.ts",
+    "packages/*/drizzle.config.ts",
+    "evaluation/scripts/**/*.ts"
+  ],
   "exclude": ["node_modules", "**/node_modules"]
 }

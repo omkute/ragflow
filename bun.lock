@@ -8,6 +8,7 @@
         "@biomejs/biome": "1.9.4",
         "@types/bun": "1.2.23",
         "drizzle-kit": "0.31.4",
+        "drizzle-orm": "^0.44.2",
         "typescript": "5.9.2",
       },
     },
@@ -64,6 +65,14 @@
     "packages/embeddings": {
       "name": "@indexa/embeddings",
       "version": "0.1.0",
+    },
+    "packages/evaluation": {
+      "name": "@indexa/evaluation",
+      "version": "0.1.0",
+      "dependencies": {
+        "drizzle-orm": "^0.44.2",
+        "zod": "^3.25.76",
+      },
     },
   },
   "packages": {
@@ -164,6 +173,8 @@
     "@indexa/document-processing": ["@indexa/document-processing@workspace:packages/document-processing"],
 
     "@indexa/embeddings": ["@indexa/embeddings@workspace:packages/embeddings"],
+
+    "@indexa/evaluation": ["@indexa/evaluation@workspace:packages/evaluation"],
 
     "@indexa/worker": ["@indexa/worker@workspace:apps/worker"],
 

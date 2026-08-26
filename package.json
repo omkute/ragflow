@@ -18,12 +18,14 @@
     "db:migrate": "bun packages/db/src/migrate.ts",
     "infra:up": "docker compose up -d --wait",
     "infra:down": "docker compose down",
-    "infra:logs": "docker compose logs -f"
+    "infra:logs": "docker compose logs -f",
+    "evaluate": "bun evaluation/scripts/evaluate.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
     "@types/bun": "1.2.23",
     "drizzle-kit": "0.31.4",
+    "drizzle-orm": "^0.44.2",
     "typescript": "5.9.2"
   }
 }

@@ -1,0 +1,38 @@
+[
+  {
+    "id": "auth-reset-token",
+    "question": "How do I reset my API token?",
+    "query": "reset my API token",
+    "expectedDocuments": ["authentication.md"]
+  },
+  {
+    "id": "chunking-config",
+    "question": "What are the chunking configuration options?",
+    "query": "chunkSize chunkOverlap configuration",
+    "expectedDocuments": ["chunking.md"]
+  },
+  {
+    "id": "embedding-provider",
+    "question": "How does the embedding provider abstraction work?",
+    "query": "EmbeddingProvider embedDocuments embedQuery",
+    "expectedDocuments": ["embeddings.md"]
+  },
+  {
+    "id": "incremental-reuse",
+    "question": "How does incremental indexing reuse embeddings?",
+    "query": "incremental indexing reuse unchanged chunks content hash",
+    "expectedDocuments": ["incremental-indexing.md"]
+  },
+  {
+    "id": "retrieval-search",
+    "question": "How does retrieval work with pgvector?",
+    "query": "pgvector cosine similarity Top-K search",
+    "expectedDocuments": ["retrieval.md"]
+  },
+  {
+    "id": "api-auth-header",
+    "question": "What header is used for authentication?",
+    "query": "Authorization Bearer API_KEY header",
+    "expectedDocuments": ["authentication.md"]
+  }
+]
