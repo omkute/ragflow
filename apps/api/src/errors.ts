@@ -1,4 +1,5 @@
 import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import type { z } from 'zod';
 
 /** Base class for explicit application errors mapped to HTTP responses. */
 export class AppError extends Error {
@@ -17,6 +18,55 @@ export class ConfigurationError extends AppError {
   constructor(message: string) {
     super(message, { statusCode: 500, code: 'CONFIGURATION_ERROR' });
   }
+}
+
+export class BadRequestError extends AppError {
+  constructor(message: string) {
+    super(message, { statusCode: 400, code: 'VALIDATION_ERROR' });
+  }
+}
+
+export class DocumentNotFoundError extends AppError {
+  constructor(documentId: string) {
+    super(`Document not found: ${documentId}`, {
+      statusCode: 404,
+      code: 'DOCUMENT_NOT_FOUND',
+    });
+  }
+}
+
+export class UnsupportedDocumentTypeError extends AppError {
+  constructor(contentType: string) {
+    super(`Unsupported document content type: ${contentType}`, {
+      statusCode: 415,
+      code: 'UNSUPPORTED_DOCUMENT_TYPE',
+    });
+  }
+}
+
+export class DocumentParseError extends AppError {
+  constructor(filename: string, cause: unknown) {
+    super(`Failed to parse document: ${filename}`, {
+      statusCode: 422,
+      code: 'DOCUMENT_PARSE_ERROR',
+    });
+    this.cause = cause;
+  }
+}
+
+/**
+ * Validate untrusted input with a Zod schema, mapping failures to 400.
+ * Keeps route handlers thin: `parseWith(schema, request.body)`.
+ */
+export function parseWith<T extends z.ZodTypeAny>(schema: T, input: unknown): z.infer<T> {
+  const result = schema.safeParse(input);
+  if (!result.success) {
+    const issues = result.error.issues
+      .map((issue) => `${issue.path.join('.') || 'body'}: ${issue.message}`)
+      .join('; ');
+    throw new BadRequestError(issues);
+  }
+  return result.data;
 }
 
 /** Map domain errors to HTTP responses without leaking internals. */

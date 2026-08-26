@@ -8,6 +8,13 @@
       "when": 1756160000000,
       "tag": "0000_enable_pgvector",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1787748922470,
+      "tag": "0001_previous_apocalypse",
+      "breakpoints": true
     }
   ]
 }

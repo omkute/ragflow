@@ -6,8 +6,9 @@ Indexa ingests documents, chunks them deterministically, embeds them into Postgr
 (pgvector), and — its defining feature — **reuses embeddings for unchanged chunks**
 when documents change, re-embedding only what actually differs.
 
-> Status: **Milestone 1 — Foundation** complete. See `CLAUDE.md` for the full spec
-> and roadmap, `handover.md` for current state.
+> Status: **Milestone 2 — Document Ingestion** complete (M1 foundation before
+> that). See `CLAUDE.md` for the full spec and roadmap, `handover.md` for
+> current state.
 
 ## Stack
 
@@ -24,11 +25,29 @@ when documents change, re-embedding only what actually differs.
 
 ```
 apps/
-  api/       Fastify HTTP API (health endpoint today)
+  api/       Fastify HTTP API (health + document ingestion)
   worker/    BullMQ ingestion worker (queue wired; processing arrives in M7)
 packages/
   db/        Drizzle client, schema, migrations, pgvector helpers
+  document-processing/  parsers, normalization, content hashing
 ```
+
+## Documents API
+
+```bash
+# Upload a Markdown/TXT document (contentType optional; derived from extension)
+curl -s -X POST http://127.0.0.1:3000/documents \
+  -H 'content-type: application/json' \
+  -d '{"filename":"notes.md","content":"# Title\n\nBody text"}'
+
+curl -s http://127.0.0.1:3000/documents            # list
+curl -s http://127.0.0.1:3000/documents/<id>       # detail incl. normalized content
+curl -s -X DELETE http://127.0.0.1:3000/documents/<id>
+```
+
+Upload flow: validate (Zod) → parse via format-specific parser → normalize →
+SHA-256 content hash → persist `documents` + `document_versions` atomically.
+Unsupported types return `415`, invalid payloads `400`, unknown ids `404`.
 
 ## Getting started
 

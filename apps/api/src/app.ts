@@ -3,7 +3,9 @@ import Fastify, { type FastifyInstance } from 'fastify';
 import Redis from 'ioredis';
 import type { ApiConfig } from './config';
 import { registerErrorHandler } from './errors';
+import { documentsRoutes } from './routes/documents';
 import { healthRoutes } from './routes/health';
+import { DocumentService } from './services/document-service';
 
 /**
  * Build the Fastify application (no listening).
@@ -31,6 +33,7 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
   });
 
   app.register(healthRoutes, { sql, redis });
+  app.register(documentsRoutes, { documentService: new DocumentService(db) });
   registerErrorHandler(app);
 
   app.addHook('onClose', async () => {
