@@ -46,7 +46,10 @@ describe.skipIf(!infraAvailable)('Milestone 6 — incremental indexing', () => {
     const numTokens = numChunks * chunkSize;
     const contentV1 = makeContent(numTokens, undefined, chunkSize);
 
-    const first = await service.create({ filename: `inc-critical-${Date.now()}.txt`, content: contentV1 });
+    const first = await service.create({
+      filename: `inc-critical-${Date.now()}.txt`,
+      content: contentV1,
+    });
     await service.processIngestionJob(first.ingestionJob.id);
     expect(fake.totalChunksEmbedded).toBe(100);
     expect(fake.calls).toBe(1); // batched

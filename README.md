@@ -4,10 +4,12 @@ Incremental RAG indexing & retrieval infrastructure.
 
 Indexa ingests documents, chunks them deterministically, embeds them into PostgreSQL
 (pgvector), and — its defining feature — **reuses embeddings for unchanged chunks**
-when documents change, re-embedding only what actually differs.
+when documents change, re-embedding only what actually differs. Ingestion is
+**asynchronous, idempotent and retry-safe** (BullMQ at-least-once, exponential
+backoff, unique constraints).
 
-> Status: **Milestone 2 — Document Ingestion** complete (M1 foundation before
-> that). See `CLAUDE.md` for the full spec and roadmap, `handover.md` for
+> Status: **Milestone 8 — Reliability** complete (M7 async, M6 incremental, M5 vector
+> search, M4 embeddings, M3 chunking). See `CLAUDE.md` for spec, `handover.md` for
 > current state.
 
 ## Stack
@@ -16,7 +18,7 @@ when documents change, re-embedding only what actually differs.
 | ----------- | ----------------------------------- |
 | Runtime     | Bun + TypeScript                    |
 | API         | Fastify + Zod                       |
-| Async jobs  | BullMQ + Redis                      |
+| Async jobs  | BullMQ + Redis (single `ingestion` queue) |
 | Database    | PostgreSQL + pgvector + Drizzle ORM |
 | Infra       | Docker Compose                      |
 | Tests/Lint  | `bun test`, Biome                   |
@@ -25,40 +27,54 @@ when documents change, re-embedding only what actually differs.
 
 ```
 apps/
-  api/       Fastify HTTP API (health + document ingestion)
-  worker/    BullMQ ingestion worker (queue wired; processing arrives in M7)
+  api/       Fastify API (health, documents, jobs, search)
+  worker/    BullMQ ingestion worker (idempotent, incremental)
 packages/
-  db/        Drizzle client, schema, migrations, pgvector helpers
-  document-processing/  parsers, normalization, content hashing
+  db/        Drizzle schema/migrations, pgvector
+  document-processing/  parsers, normalization, SHA-256 hashing
+  chunking/  deterministic TokenChunker
+  embeddings/  provider interface, FakeEmbeddingProvider, batch
+evaluation/  (next) retrieval benchmarks
 ```
 
-## Documents API
+## Documents & Jobs API
 
 ```bash
-# Upload a Markdown/TXT document (contentType optional; derived from extension)
+# Upload — returns 201 (inline completed in test) or 202 (queued) with job
 curl -s -X POST http://127.0.0.1:3000/documents \
   -H 'content-type: application/json' \
-  -d '{"filename":"notes.md","content":"# Title\n\nBody text"}'
+  -d '{"filename":"notes.md","content":"# Title\n\nBody text"}' | jq
 
-curl -s http://127.0.0.1:3000/documents            # list
+curl -s http://127.0.0.1:3000/documents            # list (limit/offset)
 curl -s http://127.0.0.1:3000/documents/<id>       # detail incl. normalized content
+curl -s http://127.0.0.1:3000/documents/<id>/chunks | jq
+curl -s -X POST http://127.0.0.1:3000/documents/<id>/reindex \
+  -H 'content-type: application/json' \
+  -d '{"content":"# Updated\n\nNew body"}' | jq
+
+curl -s http://127.0.0.1:3000/jobs/<jobId> | jq   # queued|processing|completed|failed
 curl -s -X DELETE http://127.0.0.1:3000/documents/<id>
+
+# Search (pgvector cosine)
+curl -s -X POST http://127.0.0.1:3000/search \
+  -H 'content-type: application/json' \
+  -d '{"query":"how does chunking work?","topK":5}' | jq
 ```
 
-Upload flow: validate (Zod) → parse via format-specific parser → normalize →
-SHA-256 content hash → persist `documents` + `document_versions` atomically.
-Unsupported types return `415`, invalid payloads `400`, unknown ids `404`.
+Upload flow: validate (Zod) → parse → normalize → SHA-256 hash → txn `documents`+`document_versions`+`ingestion_jobs(queued)` → enqueue BullMQ `jobId=ingestionJobId` (deduplicated) → worker chunks → incremental embedding reuse → upsert `chunks` → mark `ready`/`completed`. Retries use exponential backoff; concurrent workers rely on `(document_version_id,chunk_index)` unique upsert.
+
+Reliability: `POST /documents` is idempotent per version, `processIngestionJob` is at-least-once safe, `GET /jobs/:id` is source of truth, `attempts/error` tracked.
 
 ## Getting started
 
 ```bash
 bun install                 # install dependencies
 docker compose up -d --wait # start PostgreSQL (+pgvector) and Redis
-cp .env.example .env        # configure environment
+cp .env.example .env        # configure DATABASE_URL, REDIS_URL, VECTOR_DIMENSION etc
 
-bun run db:migrate          # apply migrations (enables pgvector)
+bun run db:migrate          # apply migrations (enables pgvector, creates ingestion_jobs, vector(1536))
 bun run dev:api             # http://127.0.0.1:3000
-bun run dev:worker          # starts ingestion worker
+bun run dev:worker          # starts ingestion worker (concurrency 2)
 ```
 
 ## Commands
@@ -82,11 +98,8 @@ bun run dev:worker          # starts ingestion worker
 curl -s http://127.0.0.1:3000/health | jq
 ```
 
-Returns `200` with per-dependency checks (`postgres`, `pgvector`, `redis`),
-or `503` with `status: "degraded"` when any dependency is unreachable.
+Returns `200` with per-dependency checks (`postgres`, `pgvector`, `redis`), or `503` degraded.
 
 ## Testing notes
 
-Integration tests require running infrastructure (`DATABASE_URL` / `REDIS_URL`
-set, e.g. via `.env`); they skip with an explanatory message when the
-environment variables are absent.
+Integration tests require running infrastructure (`DATABASE_URL` / `REDIS_URL` set, e.g. via `.env`); they skip when absent. Reliability suite covers idempotency (same job twice → no duplicates), concurrency (`Promise.allSettled` dual workers), retry (flaky provider timeout→failed→retry→completed), job API polling, BullMQ exponential backoff config.
