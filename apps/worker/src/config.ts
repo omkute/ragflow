@@ -54,7 +54,9 @@ export class ConfigurationError extends Error {
  * Parse and validate environment variables into typed config.
  * Fails fast with a message listing every offending variable.
  */
-export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
+export function loadConfig(
+  env: Record<string, string | undefined> = process.env as Record<string, string | undefined>,
+): WorkerConfig {
   const result = envSchema.safeParse(env);
 
   if (!result.success) {

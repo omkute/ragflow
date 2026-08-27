@@ -1,3 +1,4 @@
+import cors from '@fastify/cors';
 import { createDb } from '@indexa/db';
 import { FakeEmbeddingProvider } from '@indexa/embeddings';
 import { FakeLLMProvider } from '@indexa/llm';
@@ -29,6 +30,13 @@ export async function buildApp(config: ApiConfig): Promise<FastifyInstance> {
       level: config.LOG_LEVEL,
       base: { service: 'api', env: config.NODE_ENV },
     },
+  });
+
+  // CORS for web dashboard (apps/web on :3001)
+  await app.register(cors, {
+    origin: ['http://127.0.0.1:3001', 'http://localhost:3001'],
+    methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['content-type'],
   });
 
   const { db, sql } = createDb(config.DATABASE_URL);

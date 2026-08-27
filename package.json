@@ -8,8 +8,10 @@
   "scripts": {
     "dev:api": "bun --watch apps/api/src/server.ts",
     "dev:worker": "bun --watch apps/worker/src/worker.ts",
+    "dev:web": "bun --cwd apps/web next dev -p 3001",
     "start:api": "bun apps/api/src/server.ts",
     "start:worker": "bun apps/worker/src/worker.ts",
+    "start:web": "bun --cwd apps/web next start -p 3001",
     "test": "bun test",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "biome check .",
