@@ -153,7 +153,7 @@ export default function Overview() {
               )}
             </div>
             <p className="mt-5 max-w-3xl text-sm leading-6 text-muted">
-              When a document changes, Indexa compares deterministic chunk hashes with the previous
+              When a document changes, Ragflow compares deterministic chunk hashes with the previous
               version and reuses embeddings for unchanged chunks. Only new or changed chunks go back
               through the embedding provider.
             </p>

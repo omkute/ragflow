@@ -76,7 +76,7 @@ export default function Settings() {
       <PageHeader
         eyebrow="Configuration"
         title="Settings"
-        description="Configure this local Indexa instance and its AI providers."
+        description="Configure this local Ragflow instance and its AI providers."
       />
       <div className="max-w-3xl space-y-6">
         <section className="border border-border p-6">

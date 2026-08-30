@@ -75,7 +75,7 @@ export function UploadDialog({
             <h2 id="upload-title" className="font-semibold">
               Upload documents
             </h2>
-            <p className="mt-1 text-sm text-muted">Indexa accepts Markdown and plain text files.</p>
+            <p className="mt-1 text-sm text-muted">Ragflow accepts Markdown and plain text files.</p>
           </div>
           <button
             aria-label="Close upload dialog"

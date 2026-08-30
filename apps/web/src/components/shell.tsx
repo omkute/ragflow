@@ -99,9 +99,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <div className="flex h-14 items-center justify-between border-b border-border px-4">
           <Link href="/" className="flex items-center gap-2 font-semibold tracking-tight">
             <span className="grid h-7 w-7 place-items-center rounded-md bg-accent text-accent-foreground">
-              i
+              R
             </span>
-            {!collapsed && <span>indexa</span>}
+            {!collapsed && <span>Ragflow</span>}
           </Link>
           {mobile ? (
             <button aria-label="Close navigation" onClick={() => setMobile(false)}>
@@ -148,7 +148,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <Menu size={19} />
             </button>
             <div className="hidden items-center gap-2 text-xs text-muted md:flex">
-              <span>Indexa</span>
+              <span>Ragflow</span>
               <span>/</span>
               <span className="text-foreground">
                 {nav.find(([, href]) =>

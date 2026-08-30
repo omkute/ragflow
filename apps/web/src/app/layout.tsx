@@ -3,7 +3,7 @@ import './globals.css';
 import { AppShell, Providers } from '@/components/shell';
 
 export const metadata: Metadata = {
-  title: 'Indexa — Incremental RAG',
+  title: 'Ragflow — Incremental RAG',
   description: 'Incremental RAG indexing & retrieval dashboard',
 };
 
