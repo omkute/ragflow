@@ -1,140 +1,280 @@
 # Indexa
 
-Incremental RAG indexing & retrieval infrastructure.
+**Incremental RAG indexing, retrieval, and evaluation infrastructure.**
 
-Indexa is a local/self-hosted developer console for inspecting a reliable RAG pipeline: upload Markdown or text, follow asynchronous ingestion jobs, inspect deterministic chunks, run retrieval experiments, and generate grounded answers with citations. The web console is intentionally an observability surface for the indexing system rather than a chat product.
+Indexa is a local/self-hosted developer tool for understanding what happens
+inside a production-minded RAG pipeline. It accepts Markdown and text
+documents, creates deterministic versions and chunks, stores embeddings in
+PostgreSQL/pgvector, exposes retrieval and grounded generation, and makes
+ingestion jobs observable from a web console.
 
-## Frontend
+The central design decision is incremental indexing: when a document changes,
+Indexa compares chunk hashes and reuses embeddings for unchanged chunks. Only
+new or modified chunks are embedded again.
 
-The redesigned console lives in `apps/web`. A screenshot can be added at `docs/indexa-console.png` when available.
+![Indexa console screenshot](docs/indexa-console.png)
 
-Routes: `/` overview, `/documents` and `/documents/[id]`, `/playground`, `/jobs` and `/jobs/[id]`, `/evaluation`, and `/settings`.
+> The screenshot path is a placeholder. Add `docs/indexa-console.png` when a
+> local console screenshot is available.
+
+## Why this project is interesting
+
+Indexa is intentionally more than a document uploader or chat demo. It is a
+small system for exploring the reliability boundaries of RAG infrastructure:
+
+- deterministic normalization, hashing, and token chunking;
+- versioned documents with idempotent ingestion jobs;
+- incremental embedding reuse across document versions;
+- asynchronous processing through BullMQ and Redis;
+- vector retrieval through PostgreSQL/pgvector;
+- grounded answers with inspectable citations;
+- explicit job states, attempts, failures, retries, and dependency health;
+- a retrieval evaluation harness with Recall@K, MRR, nDCG, and latency.
+
+The web application is an observability and experimentation console for those
+behaviors, not a chatbot-shaped product shell.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    UI[Indexa web console<br/>Next.js + TypeScript]
+    API[Fastify API<br/>Zod request validation]
+    DB[(PostgreSQL<br/>Drizzle + pgvector)]
+    REDIS[(Redis<br/>BullMQ queue)]
+    WORKER[Ingestion worker<br/>idempotent + retry-safe]
+    EMBED[Embedding provider<br/>fake, OpenAI, Gemini, compatible]
+    LLM[LLM provider<br/>fake, OpenAI, Anthropic, Gemini, compatible]
+    EVAL[Evaluation runner<br/>versioned benchmark JSON]
+
+    UI -->|documents, jobs, search, generate| API
+    API --> DB
+    API --> REDIS
+    REDIS --> WORKER
+    WORKER --> DB
+    WORKER --> EMBED
+    API --> EMBED
+    API --> LLM
+    EVAL --> DB
+    EVAL --> EMBED
+```
+
+### Ingestion and retrieval flow
 
 ```mermaid
 flowchart LR
-  A[Upload .md/.txt] --> B[Normalize + SHA-256 hash]
-  B --> C[Deterministic chunks]
-  C --> D{Chunk hash changed?}
-  D -- no --> E[Reuse embedding]
-  D -- yes --> F[Embed chunk]
-  E --> G[PostgreSQL + pgvector]
-  F --> G
-  G --> H[Retrieve Top-K]
-  H --> I[Grounded generation + citations]
-  C -. asynchronous job .-> J[BullMQ / Redis]
+    A[Upload .md/.txt] --> B[Parse + normalize]
+    B --> C[SHA-256 content hash]
+    C --> D[Create document version]
+    D --> E[Queue ingestion job]
+    E --> F[Deterministic chunks]
+    F --> G{Chunk hash in prior version?}
+    G -->|yes| H[Reuse stored embedding]
+    G -->|no| I[Generate embedding]
+    H --> J[Upsert chunk + vector]
+    I --> J
+    J --> K[Mark version ready]
+    K --> L[Vector similarity search]
+    L --> M[Grounded answer + citations]
 ```
 
-Incremental reuse is the core reliability property: a new document version compares content hashes with the previous version and only embeds new or changed chunks. Reuse counters are currently recorded by ingestion services/logs, not exposed as persisted dashboard metrics, so the UI does not fabricate a reuse percentage.
+### Incremental embedding reuse
 
-Indexa ingests documents, chunks them deterministically, embeds them into PostgreSQL
-(pgvector), and — its defining feature — **reuses embeddings for unchanged chunks**
-when documents change, re-embedding only what actually differs. Ingestion is
-**asynchronous, idempotent and retry-safe** (BullMQ at-least-once, exponential
-backoff, unique constraints).
+Each version retains the normalized content and its deterministic chunks. A
+chunk hash is used as the reuse key when processing the next version. If the
+same chunk appears again, its existing vector can be reused; changed chunks
+are embedded and persisted normally. Database uniqueness constraints and the
+BullMQ job ID make retries and concurrent processing safe.
 
-> Status: **Milestone 8 — Reliability** complete (M7 async, M6 incremental, M5 vector
-> search, M4 embeddings, M3 chunking). See `CLAUDE.md` for spec, `handover.md` for
-> current state.
+Reuse counters are currently available in ingestion metrics/logging rather than
+as persisted historical dashboard data. The UI therefore explains the reuse
+behavior without inventing a savings percentage or time series.
 
-## Stack
+## Web console
 
-| Concern     | Technology                          |
-| ----------- | ----------------------------------- |
-| Runtime     | Bun + TypeScript                    |
-| API         | Fastify + Zod                       |
-| Async jobs  | BullMQ + Redis (single `ingestion` queue) |
-| Database    | PostgreSQL + pgvector + Drizzle ORM |
-| Infra       | Docker Compose                      |
-| Tests/Lint  | `bun test`, Biome                   |
+The frontend is a routed Next.js application with a persistent responsive shell,
+light/dark/system themes, typed API requests, cancellation-aware polling, and
+explicit loading, empty, degraded, and error states.
 
-## Layout
+| Route | Purpose |
+| --- | --- |
+| `/` | Pipeline overview, service health, document status, recent activity, upload |
+| `/documents` | Searchable and filterable document index with upload and deletion |
+| `/documents/[id]` | Version details, content, metadata, and chunk explorer |
+| `/playground` | Retrieve or generate experiments with ranked results and citations |
+| `/jobs` | Paginated ingestion job list with active-state refresh |
+| `/jobs/[id]` | Complete job lifecycle, attempts, duration, and errors |
+| `/evaluation` | Retrieval metrics explainer and evaluation dataset/runner context |
+| `/settings` | Runtime provider configuration, health, theme, and local commands |
 
-```
+AI provider keys are entered through Settings and sent only to the API. The
+API returns provider/model and configured-state information, never stored
+secrets. Runtime settings are held in API memory and reset when the API
+restarts. Anthropic is generation-only because it is not an embedding provider.
+
+## Technology stack
+
+| Area | Technology |
+| --- | --- |
+| Runtime | Bun + TypeScript (strict) |
+| Web | Next.js App Router, React, Tailwind CSS, Lucide |
+| API | Fastify + Zod |
+| Async processing | BullMQ + Redis |
+| Database | PostgreSQL + pgvector + Drizzle ORM |
+| AI integrations | Provider interfaces with fake, OpenAI, Gemini, Anthropic, and OpenAI-compatible adapters |
+| Infrastructure | Docker Compose |
+| Quality | Bun test, TypeScript, Biome |
+
+## Repository layout
+
+```text
 apps/
-  api/       Fastify API (health, documents, jobs, search)
-  worker/    BullMQ ingestion worker (idempotent, incremental)
+  api/                    Fastify routes, services, repositories
+  worker/                 BullMQ ingestion worker and processors
+  web/                    Next.js developer console
 packages/
-  db/        Drizzle schema/migrations, pgvector
-  document-processing/  parsers, normalization, SHA-256 hashing
-  chunking/  deterministic TokenChunker
-  embeddings/  provider interface, FakeEmbeddingProvider, batch
-evaluation/  (next) retrieval benchmarks
+  db/                     Drizzle schema, migrations, pgvector helpers
+  document-processing/   Parsers, normalization, hashing
+  chunking/               Deterministic token chunker
+  embeddings/             Embedding interface and provider adapters
+  llm/                    Grounded generation interface and adapters
+  evaluation/             Retrieval metric implementations
+evaluation/
+  datasets/               Version-controlled questions and source documents
+  scripts/                Evaluation runner
+  benchmarks/             Generated benchmark results
 ```
 
-## Documents & Jobs API
+## Run locally
+
+### 1. Install dependencies and start infrastructure
 
 ```bash
-# Upload — returns 201 (inline completed in test) or 202 (queued) with job
+bun install
+cp .env.example .env
+bun run infra:up
+bun run db:migrate
+```
+
+Docker Compose starts PostgreSQL with pgvector on `localhost:5432` and Redis
+on `localhost:6379`. The API validates `DATABASE_URL`, `REDIS_URL`, chunking
+settings, and the fixed `VECTOR_DIMENSION=1536` at startup.
+
+### 2. Start the services
+
+Run each command in its own terminal:
+
+```bash
+bun run dev:api       # http://127.0.0.1:3000
+bun run dev:worker    # BullMQ ingestion worker
+bun run dev:web       # http://127.0.0.1:3001
+```
+
+Set `NEXT_PUBLIC_API_URL` if the API is not running at
+`http://127.0.0.1:3000`.
+
+### 3. Configure a real AI provider
+
+Open `http://127.0.0.1:3001/settings` and configure embedding and generation
+providers there. Supported providers are OpenAI, Google Gemini, Anthropic for
+generation, and OpenAI-compatible gateways such as OpenRouter, Groq, or
+Together. The local deterministic providers remain available for development
+when no external key is configured.
+
+The worker and API are separate processes. If ingestion should use a real
+embedding provider, configure the corresponding worker environment as well as
+the API runtime settings.
+
+## API surface
+
+The API keeps the core contracts small and inspectable:
+
+```text
+GET    /health
+GET    /documents?limit=&offset=&status=
+POST   /documents
+GET    /documents/:id
+GET    /documents/:id/chunks
+POST   /documents/:id/reindex
+DELETE /documents/:id
+GET    /jobs?limit=&offset=&status=
+GET    /jobs/:id
+POST   /search
+POST   /generate
+GET    /settings/ai
+PUT    /settings/ai
+```
+
+`GET /jobs` is the paginated list endpoint used by the Jobs screen. The
+`/settings/ai` endpoints expose only safe runtime configuration state and are
+the only new settings endpoints added for the frontend. `GET /health` returns
+per-dependency status for PostgreSQL, pgvector, and Redis and returns `503`
+when the system is degraded.
+
+Example requests:
+
+```bash
+# Create a document version
 curl -s -X POST http://127.0.0.1:3000/documents \
   -H 'content-type: application/json' \
   -d '{"filename":"notes.md","content":"# Title\n\nBody text"}' | jq
 
-curl -s http://127.0.0.1:3000/documents            # list (limit/offset)
-curl -s http://127.0.0.1:3000/documents/<id>       # detail incl. normalized content
-curl -s http://127.0.0.1:3000/documents/<id>/chunks | jq
-curl -s -X POST http://127.0.0.1:3000/documents/<id>/reindex \
-  -H 'content-type: application/json' \
-  -d '{"content":"# Updated\n\nNew body"}' | jq
+# Inspect an ingestion job
+curl -s http://127.0.0.1:3000/jobs/<jobId> | jq
 
-curl -s http://127.0.0.1:3000/jobs/<jobId> | jq   # queued|processing|completed|failed
-curl -s -X DELETE http://127.0.0.1:3000/documents/<id>
-
-# Search (pgvector cosine)
+# Search indexed chunks
 curl -s -X POST http://127.0.0.1:3000/search \
   -H 'content-type: application/json' \
   -d '{"query":"how does chunking work?","topK":5}' | jq
+
+# Generate a cited answer
+curl -s -X POST http://127.0.0.1:3000/generate \
+  -H 'content-type: application/json' \
+  -d '{"query":"How does incremental indexing work?","topK":5}' | jq
 ```
 
-Upload flow: validate (Zod) → parse → normalize → SHA-256 hash → txn `documents`+`document_versions`+`ingestion_jobs(queued)` → enqueue BullMQ `jobId=ingestionJobId` (deduplicated) → worker chunks → incremental embedding reuse → upsert `chunks` → mark `ready`/`completed`. Retries use exponential backoff; concurrent workers rely on `(document_version_id,chunk_index)` unique upsert.
+## Evaluation
 
-Reliability: `POST /documents` is idempotent per version, `processIngestionJob` is at-least-once safe, `GET /jobs/:id` is source of truth, `attempts/error` tracked.
-
-## Getting started
+The evaluation harness uses the version-controlled dataset in
+`evaluation/datasets/retrieval.json` and the synthetic source documents under
+`evaluation/datasets/documents/`. It runs retrieval against pgvector and writes
+timestamped JSON results to `evaluation/benchmarks/`.
 
 ```bash
-bun install                 # install dependencies
-docker compose up -d --wait # start PostgreSQL (+pgvector) and Redis
-cp .env.example .env        # configure DATABASE_URL, REDIS_URL, VECTOR_DIMENSION etc
-
-bun run db:migrate          # apply migrations (enables pgvector, creates ingestion_jobs, vector(1536))
-bun run dev:api             # http://127.0.0.1:3000
-bun run dev:worker          # starts ingestion worker (concurrency 2)
+bun run evaluate
+bun run evaluate -- --topK 10
+CHUNK_SIZE=256 CHUNK_OVERLAP=32 bun run evaluate
 ```
 
-## Commands
+The implemented metrics are Recall@K, Precision@K, MRR, nDCG@K, average
+latency, p50/p95 latency, and embedding counts. The web Evaluation screen is
+deliberately honest about whether stored results are available; generated
+benchmark files are not treated as production telemetry.
 
-| Command              | Purpose                                  |
-| -------------------- | ---------------------------------------- |
-| `bun run dev:api`    | Run API with watch/reload                |
-| `bun run dev:worker` | Run worker with watch/reload             |
-| `bun run test`       | Run all tests (`bun test`)               |
-| `bun run typecheck`  | TypeScript project check                 |
-| `bun run lint`       | Biome lint/format check                  |
-| `bun run format`     | Biome format write                       |
-| `bun run db:migrate` | Apply Drizzle migrations                 |
-| `bun run db:generate`| Generate migrations from schema changes  |
-| `bun run infra:up`   | Start PostgreSQL + Redis via Compose     |
-| `bun run infra:down` | Stop infrastructure                      |
-
-## Health endpoint
+## Quality checks
 
 ```bash
-curl -s http://127.0.0.1:3000/health | jq
-```
-
-Returns `200` with per-dependency checks (`postgres`, `pgvector`, `redis`), or `503` degraded.
-
-The frontend uses the existing endpoints plus `GET /jobs?limit=25&offset=0&status=processing`, which returns the same serialized job shape as `GET /jobs/:id` with pagination fields. `GET /settings/ai` exposes provider/model names and configured booleans only; `PUT /settings/ai` accepts provider/model/API-key updates for the running API process and never returns stored keys. The Settings page supports OpenAI, Anthropic, Google Gemini, and OpenAI-compatible endpoints; Anthropic is generation-only. Runtime settings are held in API memory and reset on API restart.
-
-## UI development
-
-```bash
-bun run dev:web       # http://127.0.0.1:3001
+bun run lint
+bun run typecheck
+bun test
 bun --cwd apps/web next build
 ```
 
-Set `NEXT_PUBLIC_API_URL` when the API is not at `http://127.0.0.1:3000`.
+Integration tests use PostgreSQL and Redis when the relevant environment is
+available. The reliability suite covers idempotency, concurrent workers,
+retry-safe ingestion, incremental processing, job polling, and search. The web
+tests cover API error parsing, cancellation handling, supported file
+validation, and client request contracts.
 
-## Testing notes
+## Current limitations
 
-Integration tests require running infrastructure (`DATABASE_URL` / `REDIS_URL` set, e.g. via `.env`); they skip when absent. Reliability suite covers idempotency (same job twice → no duplicates), concurrency (`Promise.allSettled` dual workers), retry (flaky provider timeout→failed→retry→completed), job API polling, BullMQ exponential backoff config.
+- Markdown and plain text are supported; PDF ingestion is not implemented.
+- Runtime AI settings are in-memory and reset when the API restarts.
+- Reuse metrics are logged/counted during ingestion but are not yet persisted
+  as historical dashboard metrics.
+- The vector schema is fixed at 1536 dimensions; changing it requires a new
+  database migration.
+- Large-content streaming and object storage are outside the current scope.
+
+See [`CLAUDE.md`](CLAUDE.md) for the project specification and
+[`handover.md`](handover.md) for implementation history and verification notes.
