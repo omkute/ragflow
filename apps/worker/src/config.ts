@@ -21,8 +21,17 @@ const envSchema = z
     CHUNK_OVERLAP: z.coerce.number().int().min(0).max(8191).default(50),
     VECTOR_DIMENSION: z.coerce.number().int().min(8).max(4096).default(1536),
     EMBEDDING_PROVIDER: z.enum(['fake', 'openai']).default('fake'),
+    EMBEDDING_MODEL: z.string().min(1).optional(),
+    EMBEDDING_API_KEY: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.EMBEDDING_PROVIDER === 'openai' && !value.EMBEDDING_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMBEDDING_API_KEY'],
+        message: 'required when EMBEDDING_PROVIDER=openai',
+      });
+    }
     if (value.CHUNK_OVERLAP >= value.CHUNK_SIZE) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

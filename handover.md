@@ -1,6 +1,6 @@
 # Handover — Indexa
 
-Last updated: 2026-08-26
+Last updated: 2026-08-30
 Current milestone: **Milestone 8 — Reliability (complete)**
 Previously completed: Milestone 7 — Async Processing, Milestone 6 — Incremental Indexing, Milestone 5 — Vector Search, Milestone 4 — Embeddings, Milestone 3 — Chunking
 Spec: see `CLAUDE.md`
@@ -8,6 +8,19 @@ Spec: see `CLAUDE.md`
 ---
 
 ## 1. What was implemented
+
+### Frontend console redesign
+
+- Replaced the single-page dashboard with a routed Next.js App Router console for overview, documents, document details, playground, jobs, evaluation, and settings.
+- Added a persistent responsive shell with collapsible sidebar, mobile navigation, breadcrumbs, service health, theme persistence via `next-themes`, and a restrained light/dark visual system.
+- Added typed API error handling, URLSearchParams query encoding, request cancellation for document reads, upload validation, bounded sequential multi-file upload processing, ingestion polling cleanup, and visible empty/error/loading states.
+- Added document detail chunk explorer with local search, expandable whitespace-preserving content, copy actions, reindex, and accessible deletion confirmation.
+- Added retrieve/generate playground modes with document selection, URL state, keyboard shortcut, latency, ranked hits, grounded answer, and source links.
+- Added `apps/web/src/lib/api.test.ts` and `validation.test.ts` for structured API errors and supported file validation.
+
+### Frontend endpoint
+
+- Added paginated `GET /jobs?limit=&offset=&status=` backed by the existing `ingestionJobs` table and repository. No other backend contracts were changed.
 
 ### Milestone 8 — Reliability (this change)
 
@@ -105,6 +118,30 @@ curl -s -X POST http://127.0.0.1:3000/search -H 'content-type: application/json'
 | Concurrency test | `Promise.allSettled` dual workers → `Set(chunkIndex).size == length` |
 | Retry test | flaky provider timeout→ `failed`→ reset to `queued`→ second process `completed`, metrics `reuse_rate` |
 | Job API | `GET /jobs/:id` polling, `reindex` creates version 2 with new job |
+
+### Frontend verification (2026-08-30)
+
+| Check | Result |
+| --- | --- |
+| `bun install` / frontend dependencies | pass |
+| `bun run lint` | pass |
+| `bun run typecheck` | pass |
+| `bun --cwd apps/web next build` | pass; 9 routes generated |
+| `bun test` | blocked by unavailable local PostgreSQL/Redis; existing integration tests report `ECONNREFUSED` |
+
+The frontend build was compiled and type-checked successfully. Browser visual inspection was not automated in this environment; the layout uses responsive desktop/mobile breakpoints and no API data is fabricated.
+
+### Follow-up visual fix
+
+- Fixed the root shell wrapper to use a horizontal flex layout so the sidebar and content stay side-by-side and the top bar retains its intended compact height.
+- Re-ran frontend lint, typecheck, and production build after the fix; all passed.
+- Fixed development-mode request cancellation handling: browser abort variants such as `signal is aborted without reason` are now ignored during Strict Mode effect cleanup instead of being rendered as document request failures. Added regression coverage.
+- Fixed async upload/reindex flows to use bounded, cancellable job polling with timeout feedback; document deletion now has handled success/failure feedback; desktop sidebar is sticky.
+- Fixed bodyless `DELETE /documents/:id` requests by omitting `content-type: application/json` when no request body is present; added a regression test for this client contract.
+- Fixed playground result rendering when switching modes or receiving an incomplete response; retrieval now safely handles absent `results` and generation uses the real response shape. Added server-side OpenAI embedding and chat providers selected by `EMBEDDING_PROVIDER=openai` / `LLM_PROVIDER=openai`, with required-key validation and no browser exposure of secrets.
+- Added settings-tab AI configuration: `GET/PUT /settings/ai` applies provider/model/API-key changes to the running API process, returns only masked/configured state, and the settings page uses password inputs with write-only key fields. The deterministic provider remains available as an explicit local fallback.
+- Added Gemini embedding/generation providers, Anthropic generation provider, and OpenAI-compatible endpoint support for gateway providers such as OpenRouter, Groq, and Together. Provider calls use the documented native HTTP APIs; Anthropic is correctly unavailable in the embedding selector.
+- Fixed the overview (`/`) upload action by mounting the shared upload dialog; completed uploads now refresh overview data and the existing bounded job polling flow is used.
 
 ## 5. Known issues / notes
 

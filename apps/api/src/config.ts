@@ -30,6 +30,20 @@ const envSchema = z
     LLM_API_KEY: z.string().min(1).optional(),
   })
   .superRefine((value, ctx) => {
+    if (value.EMBEDDING_PROVIDER === 'openai' && !value.EMBEDDING_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['EMBEDDING_API_KEY'],
+        message: 'required when EMBEDDING_PROVIDER=openai',
+      });
+    }
+    if (value.LLM_PROVIDER === 'openai' && !value.LLM_API_KEY) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['LLM_API_KEY'],
+        message: 'required when LLM_PROVIDER=openai',
+      });
+    }
     if (value.CHUNK_OVERLAP >= value.CHUNK_SIZE) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

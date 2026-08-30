@@ -2,6 +2,30 @@
 
 Incremental RAG indexing & retrieval infrastructure.
 
+Indexa is a local/self-hosted developer console for inspecting a reliable RAG pipeline: upload Markdown or text, follow asynchronous ingestion jobs, inspect deterministic chunks, run retrieval experiments, and generate grounded answers with citations. The web console is intentionally an observability surface for the indexing system rather than a chat product.
+
+## Frontend
+
+The redesigned console lives in `apps/web`. A screenshot can be added at `docs/indexa-console.png` when available.
+
+Routes: `/` overview, `/documents` and `/documents/[id]`, `/playground`, `/jobs` and `/jobs/[id]`, `/evaluation`, and `/settings`.
+
+```mermaid
+flowchart LR
+  A[Upload .md/.txt] --> B[Normalize + SHA-256 hash]
+  B --> C[Deterministic chunks]
+  C --> D{Chunk hash changed?}
+  D -- no --> E[Reuse embedding]
+  D -- yes --> F[Embed chunk]
+  E --> G[PostgreSQL + pgvector]
+  F --> G
+  G --> H[Retrieve Top-K]
+  H --> I[Grounded generation + citations]
+  C -. asynchronous job .-> J[BullMQ / Redis]
+```
+
+Incremental reuse is the core reliability property: a new document version compares content hashes with the previous version and only embeds new or changed chunks. Reuse counters are currently recorded by ingestion services/logs, not exposed as persisted dashboard metrics, so the UI does not fabricate a reuse percentage.
+
 Indexa ingests documents, chunks them deterministically, embeds them into PostgreSQL
 (pgvector), and — its defining feature — **reuses embeddings for unchanged chunks**
 when documents change, re-embedding only what actually differs. Ingestion is
@@ -99,6 +123,17 @@ curl -s http://127.0.0.1:3000/health | jq
 ```
 
 Returns `200` with per-dependency checks (`postgres`, `pgvector`, `redis`), or `503` degraded.
+
+The frontend uses the existing endpoints plus `GET /jobs?limit=25&offset=0&status=processing`, which returns the same serialized job shape as `GET /jobs/:id` with pagination fields. `GET /settings/ai` exposes provider/model names and configured booleans only; `PUT /settings/ai` accepts provider/model/API-key updates for the running API process and never returns stored keys. The Settings page supports OpenAI, Anthropic, Google Gemini, and OpenAI-compatible endpoints; Anthropic is generation-only. Runtime settings are held in API memory and reset on API restart.
+
+## UI development
+
+```bash
+bun run dev:web       # http://127.0.0.1:3001
+bun --cwd apps/web next build
+```
+
+Set `NEXT_PUBLIC_API_URL` when the API is not at `http://127.0.0.1:3000`.
 
 ## Testing notes
 

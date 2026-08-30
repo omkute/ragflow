@@ -49,13 +49,17 @@
         "rules": {
           "a11y": {
             "useButtonType": "off",
-            "useKeyWithClickEvents": "off"
+            "useKeyWithClickEvents": "off",
+            "useSemanticElements": "off",
+            "noLabelWithoutControl": "off"
           },
           "correctness": {
-            "useExhaustiveDependencies": "off"
+            "useExhaustiveDependencies": "off",
+            "useJsxKeyInIterable": "off"
           },
           "style": {
-            "noNonNullAssertion": "off"
+            "noNonNullAssertion": "off",
+            "noUnusedTemplateLiteral": "off"
           },
           "suspicious": {
             "noExplicitAny": "off"

@@ -4,7 +4,87 @@
 
 :root {
   color-scheme: light;
+  --background: 0 0% 100%;
+  --foreground: 240 6% 10%;
+  --sidebar: 240 5% 98%;
+  --border: 240 5% 90%;
+  --muted: 240 5% 96%;
+  --muted-foreground: 240 4% 46%;
+  --accent: 158 64% 36%;
+  --accent-foreground: 0 0% 100%;
+}
+.dark {
+  color-scheme: dark;
+  --background: 240 6% 8%;
+  --foreground: 0 0% 93%;
+  --sidebar: 240 6% 10%;
+  --border: 240 4% 19%;
+  --muted: 240 5% 14%;
+  --muted-foreground: 240 4% 62%;
+  --accent: 158 58% 43%;
+  --accent-foreground: 0 0% 100%;
 }
 body {
-  @apply bg-zinc-50 text-zinc-900 antialiased;
+  @apply bg-background text-foreground antialiased;
+}
+* {
+  border-color: hsl(var(--border));
+}
+.bg-background {
+  background-color: hsl(var(--background));
+}
+.bg-sidebar {
+  background-color: hsl(var(--sidebar));
+}
+.bg-muted {
+  background-color: hsl(var(--muted));
+}
+.text-muted {
+  color: hsl(var(--muted-foreground));
+}
+.border-border {
+  border-color: hsl(var(--border));
+}
+.text-accent {
+  color: hsl(var(--accent));
+}
+.bg-accent {
+  background-color: hsl(var(--accent));
+}
+.text-accent-foreground {
+  color: hsl(var(--accent-foreground));
+}
+.status {
+  @apply inline-flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[11px] font-medium;
+}
+.status-dot {
+  @apply h-1.5 w-1.5 rounded-full bg-current;
+}
+.status-ready {
+  @apply border-emerald-500/25 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300;
+}
+.status-failed {
+  @apply border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300;
+}
+.status-warn {
+  @apply border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300;
+}
+.status-neutral {
+  @apply border-border bg-muted text-muted;
+}
+.health-dot {
+  @apply h-2 w-2 rounded-full;
+}
+.health-ok {
+  @apply bg-emerald-500;
+}
+.health-degraded {
+  @apply bg-amber-500;
+}
+.health-down {
+  @apply bg-red-500;
+}
+.health-checking {
+  @apply animate-pulse;
+  background-color: hsl(var(--muted-foreground));
 }

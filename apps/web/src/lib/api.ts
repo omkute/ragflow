@@ -1,7 +1,34 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3000';
 
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    public code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export function parseApiError(status: number, statusText: string, raw: string): ApiError {
+  let body: { error?: string; code?: string } = {};
+  try {
+    body = JSON.parse(raw) as { error?: string; code?: string };
+  } catch {
+    // Keep plain-text server failures readable.
+  }
+  return new ApiError(status, body.code ?? 'REQUEST_FAILED', body.error ?? (raw || statusText));
+}
+
+export function isAbortError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  return error.name === 'AbortError' || error.message.toLowerCase().includes('aborted');
+}
+
 export interface DocumentView {
   id: string;
+  source: string;
   filename: string;
   contentType: string;
   status: string;
@@ -67,59 +94,113 @@ export interface GenerateResult {
   retrievedCount: number;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, {
-    ...init,
-    headers: { 'content-type': 'application/json', ...(init?.headers ?? {}) },
-  });
+export interface HealthResult {
+  status: string;
+  uptimeSeconds: number;
+  timestamp: string;
+  checks: Record<string, { status: string; latencyMs?: number; error?: string }>;
+}
+export interface AISettings {
+  embeddingProvider: 'fake' | 'openai' | 'gemini' | 'openai-compatible';
+  embeddingModel: string;
+  embeddingConfigured: boolean;
+  llmProvider: 'fake' | 'openai' | 'anthropic' | 'gemini' | 'openai-compatible';
+  llmModel: string;
+  llmConfigured: boolean;
+  embeddingBaseUrl?: string;
+  llmBaseUrl?: string;
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let res: Response;
+  const headers = new Headers(init.headers);
+  if (init.body !== undefined && init.body !== null && !headers.has('content-type')) {
+    headers.set('content-type', 'application/json');
+  }
+  try {
+    res = await fetch(`${API_URL}${path}`, {
+      ...init,
+      headers,
+    });
+  } catch (error) {
+    throw new ApiError(
+      0,
+      'API_UNREACHABLE',
+      error instanceof Error ? error.message : 'API is unreachable',
+    );
+  }
   if (!res.ok) {
-    const body = await res.text();
-    let message = body;
-    try {
-      const j = JSON.parse(body) as { error?: string; code?: string };
-      message = j.error ?? j.code ?? body;
-    } catch {}
-    throw new Error(`${res.status} ${res.statusText}: ${message}`);
+    const raw = await res.text();
+    throw parseApiError(res.status, res.statusText, raw);
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
 
+const params = (values: Record<string, string | number | undefined>) => {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(values))
+    if (value !== undefined) search.set(key, String(value));
+  const value = search.toString();
+  return value ? `?${value}` : '';
+};
+
 export const api = {
-  health: () =>
-    request<{ status: string; checks: Record<string, { ok: boolean; latencyMs?: number }> }>(
-      '/health',
-    ),
-  listDocuments: (limit = 20, offset = 0) =>
+  health: (signal?: AbortSignal) => request<HealthResult>('/health', { signal }),
+  getAISettings: () => request<AISettings>('/settings/ai'),
+  updateAISettings: (input: {
+    embeddingProvider?: AISettings['embeddingProvider'];
+    embeddingModel?: string;
+    embeddingApiKey?: string;
+    embeddingBaseUrl?: string;
+    llmProvider?: AISettings['llmProvider'];
+    llmModel?: string;
+    llmApiKey?: string;
+    llmBaseUrl?: string;
+  }) => request<AISettings>('/settings/ai', { method: 'PUT', body: JSON.stringify(input) }),
+  listDocuments: (limit = 25, offset = 0, signal?: AbortSignal) =>
     request<{ items: DocumentView[]; total: number; limit: number; offset: number }>(
-      `/documents?limit=${limit}&offset=${offset}`,
+      `/documents${params({ limit, offset })}`,
+      { signal },
     ),
-  getDocument: (id: string) => request<DocumentView>(`/documents/${id}`),
-  getChunks: (id: string) =>
-    request<{ documentId: string; chunks: ChunkView[] }>(`/documents/${id}/chunks`),
+  getDocument: (id: string, signal?: AbortSignal) =>
+    request<DocumentView>(`/documents/${id}`, { signal }),
+  getChunks: (id: string, signal?: AbortSignal) =>
+    request<{ documentId: string; chunks: ChunkView[] }>(`/documents/${id}/chunks`, { signal }),
   deleteDocument: (id: string) => request<void>(`/documents/${id}`, { method: 'DELETE' }),
   uploadDocument: (input: { filename: string; content: string; contentType?: string }) =>
     request<
-      DocumentView & { ingestionJob?: IngestionJobView } & { jobId?: string } & {
-        job?: IngestionJobView;
-      }
+      DocumentView & { jobId: string; job: Pick<IngestionJobView, 'id' | 'status' | 'attempts'> }
     >('/documents', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   reindex: (id: string, content: string) =>
-    request<{ document: DocumentView; version: unknown; ingestionJob: IngestionJobView }>(
-      `/documents/${id}/reindex`,
-      { method: 'POST', body: JSON.stringify({ content }) },
+    request<
+      DocumentView & { jobId: string; job: Pick<IngestionJobView, 'id' | 'status' | 'attempts'> }
+    >(`/documents/${id}/reindex`, { method: 'POST', body: JSON.stringify({ content }) }),
+  getJob: (id: string, signal?: AbortSignal) =>
+    request<IngestionJobView>(`/jobs/${id}`, { signal }),
+  listJobs: (limit = 25, offset = 0, status?: string, signal?: AbortSignal) =>
+    request<{ items: IngestionJobView[]; total: number; limit: number; offset: number }>(
+      `/jobs${params({ limit, offset, status })}`,
+      { signal },
     ),
-  getJob: (id: string) => request<IngestionJobView>(`/jobs/${id}`),
-  search: (query: string, topK = 5, documentId?: string) =>
+  search: (query: string, topK = 5, documentId?: string, signal?: AbortSignal) =>
     request<SearchResult>('/search', {
+      signal,
       method: 'POST',
       body: JSON.stringify({ query, topK, ...(documentId ? { documentId } : {}) }),
     }),
-  generate: (query: string, topK = 5, documentId?: string, systemPrompt?: string) =>
+  generate: (
+    query: string,
+    topK = 5,
+    documentId?: string,
+    systemPrompt?: string,
+    signal?: AbortSignal,
+  ) =>
     request<GenerateResult>('/generate', {
+      signal,
       method: 'POST',
       body: JSON.stringify({
         query,
@@ -129,6 +210,32 @@ export const api = {
       }),
     }),
 };
+
+export async function waitForJob(
+  jobId: string,
+  options: { signal?: AbortSignal; intervalMs?: number; maxPolls?: number } = {},
+): Promise<IngestionJobView> {
+  const intervalMs = options.intervalMs ?? 700;
+  const maxPolls = options.maxPolls ?? 45;
+  let job = await api.getJob(jobId, options.signal);
+  for (let poll = 0; poll < maxPolls && ['queued', 'processing'].includes(job.status); poll += 1) {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, intervalMs);
+      options.signal?.addEventListener(
+        'abort',
+        () => {
+          clearTimeout(timer);
+          const error = new Error('Aborted');
+          error.name = 'AbortError';
+          reject(error);
+        },
+        { once: true },
+      );
+    });
+    job = await api.getJob(jobId, options.signal);
+  }
+  return job;
+}
 
 export function getApiUrl(): string {
   return API_URL;

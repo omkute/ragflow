@@ -1,6 +1,6 @@
 import type { Database } from '@indexa/db';
 import { ingestionJobs } from '@indexa/db';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { desc, eq, sql } from 'drizzle-orm';
 
 export type IngestionJobRow = typeof ingestionJobs.$inferSelect;
 export type IngestionJobStatus = IngestionJobRow['status'];
@@ -24,6 +24,11 @@ export interface IngestionJobRepository {
   findByVersionId(documentVersionId: string): Promise<IngestionJobRow | undefined>;
 
   listByDocument(documentId: string): Promise<IngestionJobRow[]>;
+
+  list(options: { limit: number; offset: number; status?: IngestionJobStatus }): Promise<{
+    items: IngestionJobRow[];
+    total: number;
+  }>;
 
   /**
    * Atomically claim a queued job for processing: increments attempts, sets
@@ -109,6 +114,22 @@ export function createIngestionJobRepository(db: Database): IngestionJobReposito
         .from(ingestionJobs)
         .where(eq(ingestionJobs.documentId, documentId))
         .orderBy(desc(ingestionJobs.createdAt));
+    },
+
+    async list({ limit, offset, status }) {
+      const where = status ? eq(ingestionJobs.status, status) : undefined;
+      const items = await db
+        .select()
+        .from(ingestionJobs)
+        .where(where)
+        .orderBy(desc(ingestionJobs.createdAt))
+        .limit(limit)
+        .offset(offset);
+      const [countRow] = await db
+        .select({ total: sql<number>`count(*)::int` })
+        .from(ingestionJobs)
+        .where(where);
+      return { items, total: countRow?.total ?? 0 };
     },
 
     async claimForProcessing(id) {

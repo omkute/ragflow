@@ -1,5 +1,5 @@
 import { createDb } from '@indexa/db';
-import { FakeEmbeddingProvider } from '@indexa/embeddings';
+import { FakeEmbeddingProvider, OpenAIEmbeddingProvider } from '@indexa/embeddings';
 import { Worker } from 'bullmq';
 import pino from 'pino';
 import { loadConfig } from './config';
@@ -17,9 +17,14 @@ async function main(): Promise<void> {
     logger.warn({ err: error.message }, 'Redis connection error');
   });
 
-  const embeddingProvider = new FakeEmbeddingProvider({
-    dimension: config.VECTOR_DIMENSION,
-  });
+  const embeddingProvider =
+    config.EMBEDDING_PROVIDER === 'openai'
+      ? new OpenAIEmbeddingProvider({
+          apiKey: config.EMBEDDING_API_KEY as string,
+          model: config.EMBEDDING_MODEL ?? 'text-embedding-3-small',
+          dimension: config.VECTOR_DIMENSION,
+        })
+      : new FakeEmbeddingProvider({ dimension: config.VECTOR_DIMENSION });
 
   const processor = createIngestionProcessor(
     db,
